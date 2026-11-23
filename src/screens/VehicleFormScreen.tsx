@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -10,8 +10,10 @@ import {
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation/types';
-import { Vehicle, VehicleStatus } from '../types';
+import { Vehicle, VehicleStatus, Driver } from '../types';
 import { getVehicles, saveVehicle } from '../storage/vehicleStorage';
+import { getDrivers } from '../storage/driverStorage';
+import { Colors, useTheme } from '../theme/ThemeContext';
 
 const STATUS_OPTIONS: { value: VehicleStatus; label: string }[] = [
   { value: 'available', label: 'Disponível' },
@@ -23,6 +25,8 @@ export default function VehicleFormScreen() {
   const navigation = useNavigation();
   const route = useRoute<RouteProp<RootStackParamList, 'VehicleForm'>>();
   const vehicleId = route.params?.vehicleId;
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const [plate, setPlate] = useState('');
   const [brand, setBrand] = useState('');
@@ -30,8 +34,13 @@ export default function VehicleFormScreen() {
   const [year, setYear] = useState('');
   const [mileage, setMileage] = useState('');
   const [status, setStatus] = useState<VehicleStatus>('available');
+  const [driverId, setDriverId] = useState<string | undefined>(undefined);
+  const [drivers, setDrivers] = useState<Driver[]>([]);
 
-  // Se for edição, carrega os dados do veículo
+  useEffect(() => {
+    getDrivers().then(setDrivers);
+  }, []);
+
   useEffect(() => {
     if (!vehicleId) return;
     navigation.setOptions({ title: 'Editar veículo' });
@@ -44,6 +53,7 @@ export default function VehicleFormScreen() {
         setYear(String(v.year));
         setMileage(String(v.mileage));
         setStatus(v.status);
+        setDriverId(v.driverId);
       }
     });
   }, [vehicleId]);
@@ -72,11 +82,20 @@ export default function VehicleFormScreen() {
       year: yearNum,
       mileage: kmNum,
       status,
+      driverId,
     };
 
     await saveVehicle(vehicle);
     navigation.goBack();
   }
+
+  const input = (props: React.ComponentProps<typeof TextInput>) => (
+    <TextInput
+      style={styles.input}
+      placeholderTextColor={colors.textMuted}
+      {...props}
+    />
+  );
 
   return (
     <ScrollView
@@ -85,56 +104,50 @@ export default function VehicleFormScreen() {
       keyboardShouldPersistTaps="handled"
     >
       <Text style={styles.label}>Placa</Text>
-      <TextInput
-        style={styles.input}
-        value={plate}
-        onChangeText={setPlate}
-        autoCapitalize="characters"
-        maxLength={8}
-        placeholder="ABC1D23"
-      />
+      {input({
+        value: plate,
+        onChangeText: setPlate,
+        autoCapitalize: 'characters',
+        maxLength: 8,
+        placeholder: 'ABC1D23',
+      })}
 
       <Text style={styles.label}>Marca</Text>
-      <TextInput
-        style={styles.input}
-        value={brand}
-        onChangeText={setBrand}
-        placeholder="Ex: Fiat"
-      />
+      {input({ value: brand, onChangeText: setBrand, placeholder: 'Ex: Fiat' })}
 
       <Text style={styles.label}>Modelo</Text>
-      <TextInput
-        style={styles.input}
-        value={model}
-        onChangeText={setModel}
-        placeholder="Ex: Strada"
-      />
+      {input({
+        value: model,
+        onChangeText: setModel,
+        placeholder: 'Ex: Strada',
+      })}
 
       <Text style={styles.label}>Ano</Text>
-      <TextInput
-        style={styles.input}
-        value={year}
-        onChangeText={setYear}
-        keyboardType="numeric"
-        maxLength={4}
-        placeholder="2022"
-      />
+      {input({
+        value: year,
+        onChangeText: setYear,
+        keyboardType: 'numeric',
+        maxLength: 4,
+        placeholder: '2022',
+      })}
 
       <Text style={styles.label}>Quilometragem</Text>
-      <TextInput
-        style={styles.input}
-        value={mileage}
-        onChangeText={setMileage}
-        keyboardType="numeric"
-        placeholder="0"
-      />
+      {input({
+        value: mileage,
+        onChangeText: setMileage,
+        keyboardType: 'numeric',
+        placeholder: '0',
+      })}
 
       <Text style={styles.label}>Status</Text>
       <View style={styles.statusRow}>
         {STATUS_OPTIONS.map((opt) => (
           <TouchableOpacity
             key={opt.value}
-            style={[styles.statusBtn, status === opt.value && styles.statusBtnActive]}
+            style={[
+              styles.statusBtn,
+              status === opt.value && styles.statusBtnActive,
+            ]}
             onPress={() => setStatus(opt.value)}
           >
             <Text
@@ -149,6 +162,45 @@ export default function VehicleFormScreen() {
         ))}
       </View>
 
+      <Text style={styles.label}>Motorista</Text>
+      {drivers.length === 0 ? (
+        <Text style={styles.hint}>
+          Nenhum motorista cadastrado. Cadastre na aba Motoristas.
+        </Text>
+      ) : (
+        <View style={styles.wrapRow}>
+          <TouchableOpacity
+            style={[styles.chip, driverId === undefined && styles.chipActive]}
+            onPress={() => setDriverId(undefined)}
+          >
+            <Text
+              style={[
+                styles.chipText,
+                driverId === undefined && styles.chipTextActive,
+              ]}
+            >
+              Nenhum
+            </Text>
+          </TouchableOpacity>
+          {drivers.map((d) => (
+            <TouchableOpacity
+              key={d.id}
+              style={[styles.chip, driverId === d.id && styles.chipActive]}
+              onPress={() => setDriverId(d.id)}
+            >
+              <Text
+                style={[
+                  styles.chipText,
+                  driverId === d.id && styles.chipTextActive,
+                ]}
+              >
+                {d.name}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
       <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
         <Text style={styles.saveText}>Salvar</Text>
       </TouchableOpacity>
@@ -156,35 +208,56 @@ export default function VehicleFormScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
-  label: { fontSize: 14, fontWeight: '600', marginTop: 12, marginBottom: 4 },
-  input: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    padding: 12,
-    fontSize: 16,
-  },
-  statusRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
-  statusBtn: {
-    flex: 1,
-    padding: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#1565c0',
-    alignItems: 'center',
-  },
-  statusBtnActive: { backgroundColor: '#1565c0' },
-  statusText: { color: '#1565c0', fontSize: 13 },
-  statusTextActive: { color: '#fff' },
-  saveBtn: {
-    backgroundColor: '#2e7d32',
-    padding: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 24,
-  },
-  saveText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
-});
+const makeStyles = (c: Colors) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: c.background },
+    label: {
+      fontSize: 14,
+      fontWeight: '600',
+      marginTop: 12,
+      marginBottom: 4,
+      color: c.text,
+    },
+    hint: { color: c.textMuted, fontSize: 13 },
+    input: {
+      backgroundColor: c.input,
+      color: c.text,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: c.border,
+      padding: 12,
+      fontSize: 16,
+    },
+    statusRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
+    statusBtn: {
+      flex: 1,
+      padding: 10,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: c.primary,
+      alignItems: 'center',
+    },
+    statusBtnActive: { backgroundColor: c.primary },
+    statusText: { color: c.primary, fontSize: 13 },
+    statusTextActive: { color: '#fff' },
+    wrapRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+    chip: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: c.primary,
+    },
+    chipActive: { backgroundColor: c.primary },
+    chipText: { color: c.primary, fontSize: 13, fontWeight: '600' },
+    chipTextActive: { color: '#fff' },
+    saveBtn: {
+      backgroundColor: c.success,
+      padding: 14,
+      borderRadius: 8,
+      alignItems: 'center',
+      marginTop: 24,
+    },
+    saveText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+  });
+  

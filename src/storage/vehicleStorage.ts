@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Vehicle } from '../types';
 import { deleteMaintenancesByVehicle } from './maintenanceStorage';
+import { deleteFuelingsByVehicle } from './fuelStorage';
 
 const KEY = '@fleetmanager:vehicles';
 
@@ -27,4 +28,5 @@ export async function deleteVehicle(id: string): Promise<void> {
     JSON.stringify(vehicles.filter((v) => v.id !== id))
   );
   await deleteMaintenancesByVehicle(id);
+  await deleteFuelingsByVehicle(id);
 }
